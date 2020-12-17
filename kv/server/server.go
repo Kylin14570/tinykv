@@ -74,8 +74,28 @@ func (server *Server) RawDelete(_ context.Context, req *kvrpcpb.RawDeleteRequest
 }
 
 func (server *Server) RawScan(_ context.Context, req *kvrpcpb.RawScanRequest) (*kvrpcpb.RawScanResponse, error) {
-	// Your Code Here (1).
-	return nil, nil
+	var i uint32 //计数器
+	var key []byte
+	var val []byte
+	reader, _ := server.storage.Reader(nil) //获取一个reader
+	response := &kvrpcpb.RawScanResponse{   //初始化一个response
+		Kvs: nil, //初始化KVs为空
+	}
+	it := reader.IterCF(req.Cf)     //获取一个迭代器
+	it.Seek(req.StartKey)           //找到起始位置
+	for i = 0; i < req.Limit; i++ { //最多循环limit次
+		if it.Valid() == false { //如果已经到了数据库的尾部，提前结束循环
+			break
+		}
+		key = it.Item().Key() //获取当前key和value
+		val, _ = it.Item().Value()
+		response.Kvs = append(response.Kvs, &kvrpcpb.KvPair{
+			Key:   key,
+			Value: val,
+		}) //接到KVs后面去
+		it.Next() //迭代器移到下一个
+	}
+	return response, nil
 }
 
 // Raft commands (tinykv <-> tinykv)
