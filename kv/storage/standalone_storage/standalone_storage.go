@@ -11,21 +11,24 @@ import (
 // StandAloneStorage is an implementation of `Storage` for a single-node TinyKV instance. It does not
 // communicate with other nodes and all data is stored locally.
 type StandAloneStorage struct {
-	db *badger.DB
+	confg *config.Config //配置
+	db    *badger.DB     //数据库
 }
 
 func NewStandAloneStorage(conf *config.Config) *StandAloneStorage {
 	return &StandAloneStorage{
-		db: engine_util.CreateDB(conf.DBPath, false),
-	} //调用CreateDB函数创建一个数据库
-	//对StandAloneStorage进行实例化并返回
+		confg: conf, //保留配置
+	}
 }
 
 func (s *StandAloneStorage) Start() error {
+	//初始化：根据配置创建数据库
+	s.db = engine_util.CreateDB(s.confg.DBPath, false)
 	return nil
 }
 
 func (s *StandAloneStorage) Stop() error {
+	//关闭数据库
 	return s.db.Close()
 }
 
@@ -36,7 +39,6 @@ type StandAloneStorageReader struct {
 //Reader函数要返回一个StorageReader接口
 //需要先在上面定义StandAloneStorageReader结构体，对其进行实例化
 func (s *StandAloneStorage) Reader(ctx *kvrpcpb.Context) (storage.StorageReader, error) {
-	// Your Code Here (1).
 	return &StandAloneStorageReader{
 		txn: s.db.NewTransaction(false)}, nil
 }
@@ -59,17 +61,17 @@ func (s *StandAloneStorageReader) Close() {
 
 func (s *StandAloneStorage) Write(ctx *kvrpcpb.Context, batch []storage.Modify) error {
 
-	for _, tmp := range batch {
+	for _, tmp := range batch { //遍历所有修改操作
 
 		switch tmp.Data.(type) { //选择操作类型
 
 		case storage.Put: //写
 			err := engine_util.PutCF(s.db, tmp.Cf(), tmp.Key(), tmp.Value())
 			if err != nil {
-				return err //出错立即返回
+				return err
 			}
 
-		case storage.Delete: //读
+		case storage.Delete: //删除
 			err := engine_util.DeleteCF(s.db, tmp.Cf(), tmp.Key())
 			if err != nil {
 				return err
